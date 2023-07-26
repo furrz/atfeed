@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { kv } from "@vercel/kv";
-import {makeClient} from "./xrpc/_shared";
+import {makeClient} from "./xrpc/_shared.js";
 
 export default async (request: VercelRequest, response: VercelResponse) => {
     const servers = await kv.smembers("feeds");

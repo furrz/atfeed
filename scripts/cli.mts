@@ -3,10 +3,10 @@ import 'dotenv/config';
 import { kv } from "@vercel/kv";
 import chalk from "chalk";
 import inquirer from "inquirer";
-import * as atp from "@atproto/api";
 import {readFile} from "fs/promises";
 import { existsSync} from "fs";
 
+import * as atp from "@atproto/api";
 // Some Nonsense To Make TSLint and TS-Node simultaneously happy with this import.
 // I don't know why in the world I was forced to do this. :(
 let AtpAgent = atp.AtpAgent;

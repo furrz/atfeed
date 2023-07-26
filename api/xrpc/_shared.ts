@@ -1,7 +1,11 @@
-import {AtpAgent} from "@atproto/api";
 import {kv} from "@vercel/kv";
 
-export const feedURI = "at://" + process.env.FEED_DID! + "/app.bsky.feed.generator/";
+import * as atp from "@atproto/api";
+// Some Nonsense To Make TSLint and TS-Node simultaneously happy with this import.
+// I don't know why in the world I was forced to do this. :(
+let AtpAgent = atp.AtpAgent;
+if ((atp as any).default) AtpAgent = (atp as any).default.AtpAgent;
+
 
 export async function makeClient() {
 

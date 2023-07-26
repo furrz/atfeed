@@ -1,6 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import {feedURI} from "./_shared.js";
 import { kv } from "@vercel/kv";
+
+const feedURI = "at://" + process.env.FEED_DID! + "/app.bsky.feed.generator/";
+
 
 export default async (request: VercelRequest, response: VercelResponse) => {
     response.status(200).json({
