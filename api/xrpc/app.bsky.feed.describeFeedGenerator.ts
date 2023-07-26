@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import {feedURI} from "./_shared";
+import {feedURI} from "./_shared.js";
 import { kv } from "@vercel/kv";
 
 export default async (request: VercelRequest, response: VercelResponse) => {

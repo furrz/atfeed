@@ -1,7 +1,7 @@
 import type {VercelRequest, VercelResponse} from '@vercel/node';
 import {AppBskyFeedGetAuthorFeed, AtpAgent} from "@atproto/api";
-import {FeedViewPost} from "@atproto/api/dist/client/types/app/bsky/feed/defs";
-import {mergeSorted} from "./_shared";
+import {FeedViewPost} from "@atproto/api/dist/client/types/app/bsky/feed/defs.js";
+import {mergeSorted} from "./_shared.js";
 import {kv} from "@vercel/kv";
 
 const client = new AtpAgent({
@@ -43,7 +43,7 @@ export default async (request: VercelRequest, response: VercelResponse) => {
     let feedCursor: Date | null = null;
     let feedCursorFull: string | null = null;
 
-    const actors = await kv.smembers("feedusers_" + feedName);
+    const actors = (await kv.smembers("feedusers_" + feedName)).map(k => k.split(";")[0]);
 
     const datas = (await Promise.allSettled(actors.map(actor =>
         client.api.app.bsky.feed.getAuthorFeed({ actor, cursor, limit }).catch(e => console.error(e))
