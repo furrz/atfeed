@@ -1,12 +1,11 @@
 {
   "compilerOptions": {
     "target": "ESNext",
-    "module": "Node16",
-    "moduleResolution": "Node16",
-    "esModuleInterop": true
+    "module": "ESNext",
+    "moduleResolution": "Node",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true
   },
-  "include": ["/**/*.ts"],
-  "exclude": ["node_modules"],
   "ts-node": {
     "esm": true,
     "experimentalSpecifierResolution": "node"

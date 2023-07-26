@@ -1,14 +1,19 @@
+
 import 'dotenv/config';
 import { kv } from "@vercel/kv";
 import chalk from "chalk";
 import inquirer from "inquirer";
-import atp from "@atproto/api";
+import * as atp from "@atproto/api";
 import {readFile} from "fs/promises";
 import { existsSync} from "fs";
-// @ts-ignore
-const { AtpAgent } = atp;
+
+// Some Nonsense To Make TSLint and TS-Node simultaneously happy with this import.
+// I don't know why in the world I was forced to do this. :(
+let AtpAgent = atp.AtpAgent;
+if ((atp as any).default) AtpAgent = (atp as any).default.AtpAgent;
 
 async function main() {
+    console.log(atp);
     console.log(chalk.blueBright("--- atfeed management cli ---"));
 
     const feeds = await orFail("getting feeds from database...",
@@ -26,11 +31,11 @@ async function main() {
 
     // Create a new feed?
     if (feed === "New Feed") {
-        feed = await inquirer.prompt({
+        feed = (await inquirer.prompt({
             name: "feedName",
             type: "input",
             message: "Name of the New Feed:"
-        }).feed;
+        })).feedName;
 
         ensure(feed && !feeds.includes(feed) && (/^[a-zA-Z0-9]$/).test(feed), "Invalid Feed Name");
 
@@ -54,10 +59,9 @@ async function main() {
 
         if (action === "New Member") {
             let { memberName } = await inquirer.prompt({
-                name: "memberDid",
+                name: "memberName",
                 message: "New Member Name:"
             });
-            // @ts-ignore
             const memberDid = (await orFail("Resolving member handle...", () => agent.com.atproto.identity.resolveHandle({ handle: memberName }))).data.did;
 
             await orFail("Adding member...", () => kv.sadd("feedusers_" + feed, memberDid + "; " + memberName));
@@ -129,7 +133,6 @@ async function main() {
                         const img = await readFile(newAvatarPath);
                         record.avatar = (await orFail("Uploading new avatar...", () => agent.api.com.atproto.repo.uploadBlob(img, {
                             encoding: newAvatarPath.endsWith(".png") ? "image/png" : "image/jpeg"
-                            // @ts-ignore
                         }))).data.blob;
                     }
 
@@ -164,7 +167,7 @@ async function main() {
                     name: "replacementName",
                     message: "New Member Name:"
                 });
-                // @ts-ignore
+
                 const replacementDid = (await orFail("Resolving member handle...", () => agent.com.atproto.identity.resolveHandle({ handle: replacementName }))).data.did;
 
                 await orFail("Adding member...", () => kv.sadd("feedusers_" + feed, replacementDid + "; " + replacementName));
