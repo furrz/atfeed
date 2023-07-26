@@ -1,4 +1,32 @@
-export const feedURI = "at://did:web:feed.zyntaks.ca/app.bsky.feed.generator/";
+import {AtpAgent} from "@atproto/api";
+import {kv} from "@vercel/kv";
+
+export const feedURI = "at://" + process.env.FEED_DID! + "/app.bsky.feed.generator/";
+
+export async function makeClient() {
+
+    const client = new AtpAgent({
+        service: 'https://bsky.social',
+        persistSession: (evt, session) => {
+            kv.set("bsky_sesh", JSON.stringify(session)).then();
+        }
+    });
+
+    const sesh = await kv.get<string>('bsky_sesh');
+    if (sesh) {
+        client.session = (typeof sesh === 'object' ? sesh : JSON.parse(sesh));
+    }
+
+    if (!client.hasSession) {
+        console.log("New session D:");
+        await client.login({
+            identifier: process.env.BSKY_USER,
+            password: process.env.BSKY_PASSWORD
+        });
+    }
+
+    return client;
+}
 
 export function mergeSorted<T>(arr1: T[], arr2: T[], compareLessThan: (a: T, b: T) => boolean) {
     let merged: T[] = [];

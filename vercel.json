@@ -3,6 +3,14 @@
     {
       "source": "/xrpc/:any*",
       "destination": "/api/xrpc/:any*"
+    },
+    {
+      "source": "/",
+      "destination": "/api/homepage"
+    },
+    {
+      "source": "/.well-known/did.json",
+      "destination": "/api/did"
     }
   ],
   "headers": [

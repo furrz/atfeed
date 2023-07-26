@@ -3,6 +3,8 @@ import { kv } from "@vercel/kv";
 import chalk from "chalk";
 import inquirer from "inquirer";
 import atp from "@atproto/api";
+import {readFile} from "fs/promises";
+import { existsSync} from "fs";
 // @ts-ignore
 const { AtpAgent } = atp;
 
@@ -13,7 +15,7 @@ async function main() {
         () => kv.smembers("feeds"));
 
     const agent = new AtpAgent({service: 'https://bsky.social'});
-    await orFail("logging into bluesky...", () => agent.login({ identifier: "zyntaks.ca", password: process.env.BSKY_PASSWORD! }));
+    await orFail("logging into bluesky...", () => agent.login({ identifier: process.env.BSKY_USER!, password: process.env.BSKY_PASSWORD! }));
 
     let { feed } = await inquirer.prompt({
         name: "feed",
@@ -47,7 +49,7 @@ async function main() {
             name: "action",
             type: "list",
             message: "Feed Action:",
-            choices: ["New Member", "Delete Feed", "Exit", new inquirer.Separator(), ...feedMembers]
+            choices: ["New Member", "Delete Feed", "Publish Feed", "Exit", new inquirer.Separator(), ...feedMembers]
         });
 
         if (action === "New Member") {
@@ -55,18 +57,95 @@ async function main() {
                 name: "memberDid",
                 message: "New Member Name:"
             });
+            // @ts-ignore
             const memberDid = (await orFail("Resolving member handle...", () => agent.com.atproto.identity.resolveHandle({ handle: memberName }))).data.did;
 
             await orFail("Adding member...", () => kv.sadd("feedusers_" + feed, memberDid + "; " + memberName));
             feedMembers.push(memberDid + "; " + memberName);
         } else if (action === "Delete Feed") {
-            let { deleteFeedName } = await inquirer.prompt({
+            let {deleteFeedName} = await inquirer.prompt({
                 name: "deleteFeedName",
                 message: chalk.red("Are you sure? Type the name of the feed to delete:")
             });
             ensure(deleteFeedName === feed, "Oops! Wrong feed name!");
             await orFail("Deleting feed...", () => kv.srem("feeds", feed));
             process.exit(0);
+        } else if (action === "Publish Feed") {
+            let newAvatarPath : string | null = null;
+            const record = await orFail("Checking for existing public record...",
+                () => agent.api.com.atproto.repo.getRecord({
+                repo: agent.session!.did,
+                collection: "app.bsky.feed.generator",
+                rkey: feed
+            }).then(r => r.data.value).catch(e => ({
+                did: process.env.FEED_DID!,
+                displayName: feed,
+                description: "",
+                createdAt: new Date().toISOString()
+            }))) as {
+                displayName: string,
+                did:string,
+                description: string,
+                avatar: any,
+                createdAt: string
+            };
+
+            while (true) {
+                console.log(chalk.blueBright("Display Name: ") + record.displayName);
+                console.log(chalk.blueBright("Description: ") + record.description);
+                console.log(chalk.blueBright("Avatar: ") + (newAvatarPath ? "To Be Set!" : (record.avatar ? "Set!" : "Not Set!")));
+
+                const { action } = await inquirer.prompt({
+                    name: "action",
+                    type: "list",
+                    message: "Edit:",
+                    choices: ["Display Name", "Description", "Avatar", "Save Changes", "Cancel"]
+                });
+
+                if (action === "Display Name") {
+                    const {nDn} = await inquirer.prompt({
+                        name: "nDn",
+                        message: "New Display Name"
+                    });
+                    record.displayName = nDn;
+                } else if (action === "Description") {
+                    const {nDesc} = await inquirer.prompt({
+                        name: "nDesc",
+                        message: "New Description"
+                    });
+                    record.description = nDesc;
+                } else if (action === "Avatar") {
+                    const {nap } = await inquirer.prompt({
+                        name: "nap",
+                        message: "Path to New Avatar File:",
+                        validate: (input) => {
+                            if (!existsSync(input)) return "No such file";
+                            return true;
+                        }
+                    });
+                    newAvatarPath = nap;
+                } else if (action === "Save Changes") {
+                    if (newAvatarPath !== null) {
+                        const img = await readFile(newAvatarPath);
+                        record.avatar = (await orFail("Uploading new avatar...", () => agent.api.com.atproto.repo.uploadBlob(img, {
+                            encoding: newAvatarPath.endsWith(".png") ? "image/png" : "image/jpeg"
+                            // @ts-ignore
+                        }))).data.blob;
+                    }
+
+                    const res = await orFail("Publishing changes...", () => agent.api.com.atproto.repo.putRecord({
+                        repo: agent.session!.did,
+                        collection: "app.bsky.feed.generator",
+                        rkey: feed,
+                        record
+                    }));
+                    break;
+                } else if (action === "Cancel") {
+                    break;
+                } else {
+                    ensure(false, "Invalid Action");
+                }
+            }
         } else if (action === "Exit") {
             break;
         } else {
@@ -85,6 +164,7 @@ async function main() {
                     name: "replacementName",
                     message: "New Member Name:"
                 });
+                // @ts-ignore
                 const replacementDid = (await orFail("Resolving member handle...", () => agent.com.atproto.identity.resolveHandle({ handle: replacementName }))).data.did;
 
                 await orFail("Adding member...", () => kv.sadd("feedusers_" + feed, replacementDid + "; " + replacementName));

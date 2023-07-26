@@ -4,7 +4,7 @@ import { kv } from "@vercel/kv";
 
 export default async (request: VercelRequest, response: VercelResponse) => {
     response.status(200).json({
-        did: "did:web:feed.zyntaks.ca",
+        did: process.env.FEED_DID!,
         feeds: (await kv.smembers("feeds")).map(e => ({"uri": feedURI + e}))
     });
 };

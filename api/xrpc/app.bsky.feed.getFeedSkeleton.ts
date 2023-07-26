@@ -1,15 +1,9 @@
 import type {VercelRequest, VercelResponse} from '@vercel/node';
 import {AppBskyFeedGetAuthorFeed, AtpAgent} from "@atproto/api";
 import {FeedViewPost} from "@atproto/api/dist/client/types/app/bsky/feed/defs.js";
-import {mergeSorted} from "./_shared.js";
+import {makeClient, mergeSorted} from "./_shared.js";
 import {kv} from "@vercel/kv";
 
-const client = new AtpAgent({
-    service: 'https://bsky.social',
-    persistSession: (evt, session) => {
-        kv.set("bsky_sesh", JSON.stringify(session)).then();
-    }
-});
 
 export default async (request: VercelRequest, response: VercelResponse) => {
     const {feed} = request.query;
@@ -23,18 +17,7 @@ export default async (request: VercelRequest, response: VercelResponse) => {
         return;
     }
 
-    const sesh = await kv.get<string>('bsky_sesh');
-    if (sesh) {
-        client.session = (typeof sesh === 'object' ? sesh : JSON.parse(sesh));
-    }
-
-    if (!client.hasSession) {
-        console.log("New session D:");
-        await client.login({
-            identifier: "zyntaks.ca",
-            password: process.env.BSKY_PASSWORD
-        });
-    }
+    const client = await makeClient();
 
     const cursor = request.query.cursor?.toString() ?? undefined;
     const limit = request.query.limit ? parseInt(request.query.limit.toString()) : undefined;
