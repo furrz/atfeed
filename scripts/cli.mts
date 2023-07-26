@@ -5,15 +5,10 @@ import chalk from "chalk";
 import inquirer from "inquirer";
 import {readFile} from "fs/promises";
 import { existsSync} from "fs";
-
-import * as atp from "@atproto/api";
-// Some Nonsense To Make TSLint and TS-Node simultaneously happy with this import.
-// I don't know why in the world I was forced to do this. :(
-let AtpAgent = atp.AtpAgent;
-if ((atp as any).default) AtpAgent = (atp as any).default.AtpAgent;
+import atp from "@atproto/api";
+const { AtpAgent } = atp;
 
 async function main() {
-    console.log(atp);
     console.log(chalk.blueBright("--- atfeed management cli ---"));
 
     const feeds = await orFail("getting feeds from database...",
