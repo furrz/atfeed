@@ -1,0 +1,13 @@
+{
+  "@context": [
+    "https://www.w3.org/ns/did/v1"
+  ],
+  "id": "did:web:feed.zyntaks.ca",
+  "service": [
+    {
+      "id": "#bsky_fg",
+      "serviceEndpoint": "https://feed.zyntaks.ca",
+      "type": "BskyFeedGenerator"
+    }
+  ]
+}

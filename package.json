@@ -1,0 +1,18 @@
+{
+  "name": "atfeed",
+  "version": "1.0.0",
+  "scripts": {
+    "addUserToFeed": "ts-node ./scripts/addUserToFeed.ts",
+    "publishFeed": "ts-node ./scripts/publishFeed.ts"
+  },
+  "devDependencies": {
+    "@atproto/api": "^0.4.3",
+    "@atproto/did-resolver": "^0.1.0",
+    "@vercel/node": "^2.15.6",
+    "dotenv": "^16.3.1",
+    "ts-node": "^10.9.1"
+  },
+  "dependencies": {
+    "@vercel/kv": "^0.2.2"
+  }
+}
