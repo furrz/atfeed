@@ -1,36 +1,29 @@
-
 import 'dotenv/config';
-import { kv } from "@vercel/kv";
+import {kv} from "@vercel/kv";
 import chalk from "chalk";
 import inquirer from "inquirer";
 import {readFile} from "fs/promises";
-import { existsSync} from "fs";
+import {existsSync} from "fs";
 import atp from "@atproto/api";
-const { AtpAgent } = atp;
+
+const {AtpAgent} = atp;
 
 async function main() {
     console.log(chalk.blueBright("--- atfeed management cli ---"));
 
-    const feeds = await orFail("getting feeds from database...",
-        () => kv.smembers("feeds"));
+    const feeds = await kv.smembers("feeds").orFail("getting feeds from database...");
 
     const agent = new AtpAgent({service: 'https://bsky.social'});
-    await orFail("logging into bluesky...", () => agent.login({ identifier: process.env.BSKY_USER!, password: process.env.BSKY_PASSWORD! }));
+    await agent.login({
+        identifier: process.env.BSKY_USER!,
+        password: process.env.BSKY_PASSWORD!
+    }).orFail("logging into bluesky...");
 
-    let { feed } = await inquirer.prompt({
-        name: "feed",
-        type: "list",
-        message: "Feed to manage:",
-        choices: ["New Feed", new inquirer.Separator(), ...feeds]
-    });
+    let feed = await promptChoice("Feed to manage:", ["New Feed", new inquirer.Separator(), ...feeds]);
 
     // Create a new feed?
     if (feed === "New Feed") {
-        feed = (await inquirer.prompt({
-            name: "feedName",
-            type: "input",
-            message: "Name of the New Feed:"
-        })).feedName;
+        feed = await promptText("Name of the New Feed:");
 
         ensure(feed && !feeds.includes(feed) && (/^[a-zA-Z0-9]$/).test(feed), "Invalid Feed Name");
 
@@ -41,49 +34,45 @@ async function main() {
     // Handle invalid feeds
     ensure(feeds.includes(feed), "Invalid Feed");
 
-    let feedMembers = await orFail("Fetching feed members...", () => kv.smembers("feedusers_" + feed));
+    let feedMembers = await kv.smembers("feedusers_" + feed)
+        .orFail("Fetching feed members...");
+
     console.log(chalk.blueBright(feed) + " - " + chalk.yellow(feedMembers.length + " members"));
 
     while (true) {
-        let {action} = await inquirer.prompt({
-            name: "action",
-            type: "list",
-            message: "Feed Action:",
-            choices: ["New Member", "Delete Feed", "Publish Feed", "Exit", new inquirer.Separator(), ...feedMembers]
-        });
+        let action = await promptChoice("Feed Action:", ["New Member", "Delete Feed", "Publish Feed", "Exit", new inquirer.Separator(), ...feedMembers]);
 
         if (action === "New Member") {
-            let { memberName } = await inquirer.prompt({
-                name: "memberName",
-                message: "New Member Name:"
-            });
-            const memberDid = (await orFail("Resolving member handle...", () => agent.com.atproto.identity.resolveHandle({ handle: memberName }))).data.did;
+            let memberName = await promptText("New Member Name:");
+            const memberDid = (await agent.com.atproto.identity.resolveHandle({handle: memberName})
+                .orFail("Resolving member handle...")).data.did;
 
-            await orFail("Adding member...", () => kv.sadd("feedusers_" + feed, memberDid + "; " + memberName));
+            await kv.sadd("feedusers_" + feed, memberDid + "; " + memberName)
+                .orFail("Adding member...");
+
             feedMembers.push(memberDid + "; " + memberName);
         } else if (action === "Delete Feed") {
-            let {deleteFeedName} = await inquirer.prompt({
-                name: "deleteFeedName",
-                message: chalk.red("Are you sure? Type the name of the feed to delete:")
-            });
+            let deleteFeedName = await promptText(chalk.red("Are you sure? Type the name of the feed to delete:"));
             ensure(deleteFeedName === feed, "Oops! Wrong feed name!");
-            await orFail("Deleting feed...", () => kv.srem("feeds", feed));
+            await kv.srem("feeds", feed)
+                .orFail("Deleting feed...");
             process.exit(0);
         } else if (action === "Publish Feed") {
-            let newAvatarPath : string | null = null;
-            const record = await orFail("Checking for existing public record...",
-                () => agent.api.com.atproto.repo.getRecord({
-                repo: agent.session!.did,
-                collection: "app.bsky.feed.generator",
-                rkey: feed
-            }).then(r => r.data.value).catch(e => ({
-                did: process.env.FEED_DID!,
-                displayName: feed,
-                description: "",
-                createdAt: new Date().toISOString()
-            }))) as {
+            let newAvatarPath: string | null = null;
+            const record = await agent.api.com.atproto.repo.getRecord({
+                    repo: agent.session!.did,
+                    collection: "app.bsky.feed.generator",
+                    rkey: feed
+                })
+                .then(r => r.data.value)
+                .catch(_ => ({
+                    did: process.env.FEED_DID!,
+                    displayName: feed,
+                    description: "",
+                    createdAt: new Date().toISOString()
+                })) as {
                 displayName: string,
-                did:string,
+                did: string,
                 description: string,
                 avatar: any,
                 createdAt: string
@@ -94,49 +83,31 @@ async function main() {
                 console.log(chalk.blueBright("Description: ") + record.description);
                 console.log(chalk.blueBright("Avatar: ") + (newAvatarPath ? "To Be Set!" : (record.avatar ? "Set!" : "Not Set!")));
 
-                const { action } = await inquirer.prompt({
-                    name: "action",
-                    type: "list",
-                    message: "Edit:",
-                    choices: ["Display Name", "Description", "Avatar", "Save Changes", "Cancel"]
-                });
+                const action = await promptChoice("Edit:", ["Display Name", "Description", "Avatar", "Save Changes", "Cancel"]);
 
                 if (action === "Display Name") {
-                    const {nDn} = await inquirer.prompt({
-                        name: "nDn",
-                        message: "New Display Name"
-                    });
-                    record.displayName = nDn;
+                    record.displayName = await promptText("New Display Name:");
                 } else if (action === "Description") {
-                    const {nDesc} = await inquirer.prompt({
-                        name: "nDesc",
-                        message: "New Description"
-                    });
-                    record.description = nDesc;
+                    record.description = await promptText("New Description:");
                 } else if (action === "Avatar") {
-                    const {nap } = await inquirer.prompt({
-                        name: "nap",
-                        message: "Path to New Avatar File:",
-                        validate: (input) => {
-                            if (!existsSync(input)) return "No such file";
-                            return true;
-                        }
+                    newAvatarPath = await promptText("Path to New Avatar File:", (input) => {
+                        if (!existsSync(input)) return "No such file";
+                        return true;
                     });
-                    newAvatarPath = nap;
                 } else if (action === "Save Changes") {
                     if (newAvatarPath !== null) {
                         const img = await readFile(newAvatarPath);
-                        record.avatar = (await orFail("Uploading new avatar...", () => agent.api.com.atproto.repo.uploadBlob(img, {
+                        record.avatar = (await agent.api.com.atproto.repo.uploadBlob(img, {
                             encoding: newAvatarPath.endsWith(".png") ? "image/png" : "image/jpeg"
-                        }))).data.blob;
+                        }).orFail("Uploading new avatar...")).data.blob;
                     }
 
-                    const res = await orFail("Publishing changes...", () => agent.api.com.atproto.repo.putRecord({
+                    await agent.api.com.atproto.repo.putRecord({
                         repo: agent.session!.did,
                         collection: "app.bsky.feed.generator",
                         rkey: feed,
                         record
-                    }));
+                    }).orFail("Publishing changes...");
                     break;
                 } else if (action === "Cancel") {
                     break;
@@ -150,27 +121,25 @@ async function main() {
             ensure(feedMembers.includes(action), "Invalid Feed Member or Action");
 
             const member = action;
-            let { memberAction } = await inquirer.prompt({
-                name: "memberAction",
-                message: "What to do with this member?",
-                type: "list",
-                choices: ["Nothing", "Replace", "Delete"]
-            });
+            let memberAction = await promptChoice("What to do with this member?", ["Nothing", "Replace", "Delete"]);
 
             if (memberAction === "Replace") {
-                let { replacementName } = await inquirer.prompt({
-                    name: "replacementName",
-                    message: "New Member Name:"
-                });
+                const replacementName = await promptText("New Member Name:");
+                const replacementDid = (await agent.com.atproto.identity.resolveHandle({handle: replacementName})
+                    .orFail("Resolving member handle..."))
+                    .data.did;
 
-                const replacementDid = (await orFail("Resolving member handle...", () => agent.com.atproto.identity.resolveHandle({ handle: replacementName }))).data.did;
+                await kv.sadd("feedusers_" + feed, replacementDid + "; " + replacementName)
+                    .orFail("Adding member...");
 
-                await orFail("Adding member...", () => kv.sadd("feedusers_" + feed, replacementDid + "; " + replacementName));
-                await orFail("Removing old member...", () => kv.srem("feedusers_" + feed, member));
+                await kv.srem("feedusers_" + feed, member)
+                    .orFail("Removing old member...");
+
                 feedMembers = feedMembers.filter(e => e !== member);
                 feedMembers.push(replacementDid + "; " + replacementName);
             } else if (memberAction === "Delete") {
-                await orFail("Removing old member...", () => kv.srem("feedusers_" + feed, member));
+                await kv.srem("feedusers_" + feed, member)
+                    .orFail("Removing old member...");
             }
         }
     }
@@ -179,21 +148,31 @@ async function main() {
     process.exit(0);
 }
 
-async function orFail<T>(message, cb: () => Promise<T>): Promise<T> {
+const promptText = (message: string, validate?: (a: string) => (boolean | string)) => inquirer.prompt({ name: "r", message, validate }).then(({r}) => r as string)
+const promptChoice = (message: string, choices: (string | inquirer.Separator)[]) => inquirer.prompt({ name: "r", type: "list", message, choices }).then(({ r }) => r as string)
+
+declare global {
+    interface Promise<T> {
+        orFail(message:string): Promise<T>;
+    }
+}
+Promise.prototype.orFail = async function <T>(message: string): Promise<T> {
     process.stdout.write(message);
+
     try {
-        const res = await cb();
+        const res = await this;
         process.stdout.write("\r\x1b[K");
         console.log(chalk.green(message) + " ✅");
         return res;
-    } catch (e) {
+    } catch (_) {
         process.stdout.write("\r\x1b[K");
         console.log(chalk.red(message) + "❌");
         process.exit(1)
     }
 }
 
-function ensure(t, message) {
+
+function ensure(t: boolean, message: string) {
     if (!t) {
         console.error(chalk.red(message));
         process.exit(1);

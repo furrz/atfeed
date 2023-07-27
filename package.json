@@ -10,14 +10,19 @@
   "scripts": {
     "addUserToFeed": "ts-node ./scripts/addUserToFeed.ts",
     "publishFeed": "ts-node ./scripts/publishFeed.ts",
-    "cli": "node --loader ts-node/esm scripts/cli.mts"
+    "cli": "node --loader ts-node/esm scripts/cli.mts",
+    "monitor": "node --loader ts-node/esm scripts/monitor.mts"
   },
   "devDependencies": {
+    "@atproto/repo": "^0.2.0",
+    "@atproto/xrpc-server": "^0.3.0",
     "@types/inquirer": "^9.0.3",
+    "@types/ws": "^8.5.5",
     "chalk": "4",
     "dotenv": "^16.3.1",
     "inquirer": "^9.2.8",
-    "ts-node": "^10.9.1"
+    "ts-node": "^10.9.1",
+    "ws": "^8.13.0"
   },
   "dependencies": {
     "@atproto/api": "^0.4.3",

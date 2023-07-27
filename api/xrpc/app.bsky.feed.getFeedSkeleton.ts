@@ -1,6 +1,5 @@
 import type {VercelRequest, VercelResponse} from '@vercel/node';
 import {AppBskyFeedGetAuthorFeed} from "@atproto/api";
-
 import {FeedViewPost} from "@atproto/api/dist/client/types/app/bsky/feed/defs.js";
 import {makeClient, mergeSorted} from "./_shared.js";
 import {kv} from "@vercel/kv";
@@ -44,6 +43,10 @@ export default async (request: VercelRequest, response: VercelResponse) => {
         } catch (e) {
             console.error(e);
         }
+    }
+
+    if (limit && feedData.length > limit) {
+        feedData.length = limit;
     }
 
     response.status(200).json({
